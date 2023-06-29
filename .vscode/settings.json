@@ -1,0 +1,21 @@
+{
+    "files.associations": {
+        "liburing.h": "c",
+        "stdio.h": "c",
+        "io_uring.h": "c",
+        "homa.h": "c",
+        "homa_impl.h": "c",
+        "homa_lcache.h": "c",
+        "socket.h": "c",
+        "socketvar.h": "c",
+        "ip.h": "c",
+        "mman.h": "c",
+        "types.h": "c",
+        "sock.h": "c",
+        "uio.h": "c",
+        "errno.h": "c",
+        "errno-base.h": "c",
+        "module.h": "c",
+        "file.h": "c"
+    }
+}
