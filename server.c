@@ -29,12 +29,12 @@ MODULE_DESCRIPTION("test homa server in the kernel.");
 
 #define PORT 7777
 
-extern int homa_socket(struct sock *sk);
-extern int homa_bind(struct socket *sock, struct sockaddr *addr, int addr_len);
+/* extern int homa_socket(struct sock *sk);
+extern int homa_bind(struct socket *sock, struct sockaddr *addr, int addr_len); */
 /* more extern homa stuff here */
 
 // static struct miscdevice *hello_dev, *hello_miscdev;
-char *server_homa_buf_region;
+
 
 static int __init
 server_init(void)
@@ -53,20 +53,23 @@ server_init(void)
     printk(KERN_INFO "loaded kern homa server test\n");
     printk(KERN_INFO "Hello world!\n");
 
+    char *server_homa_buf_region;
+
     // sock create
     struct socket *sock;
     int ret;
-    ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_HOMA, &sock);
+    ret = sock_create_kern(current->nsproxy->net_ns, AF_INET, SOCK_DGRAM, IPPROTO_HOMA, &sock);
     if (ret < 0)
         pr_err("%s, %d\n", "cannot create socket for homa in kernel!", ret);
     else
         pr_info("%s, %d\n", "sock_create success!", ret);
 
     // setsockopt
-    pr_info("%s\n", "start setsockopt in kernel");
+    pr_info("start setsockopt in kernel\n");
     struct homa_set_buf_args arg;
     int bufsize = 64 * HOMA_BPAGE_SIZE;
-    server_homa_buf_region = vzalloc(bufsize);  // TODO: DON'T use kmalloc if bufsize is large
+    server_homa_buf_region = kzalloc(bufsize, GFP_KERNEL);  // TODO: DON'T use kmalloc if bufsize is large
+    pr_notice("server_homa_buf_region: %p\n", server_homa_buf_region);
     arg.start = server_homa_buf_region;
     arg.length = bufsize;
 
@@ -97,7 +100,10 @@ server_init(void)
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     ret = kernel_bind(sock, (struct sockaddr *)&addr, sizeof(addr));
     if (ret < 0)
+    {
         pr_err("%s %d, ret: %d\n", "bind failed on port", PORT, ret);
+        return ret;
+    }
     else
         pr_info("%s", "bind success");
 
@@ -106,7 +112,8 @@ server_init(void)
 
     // blocking listen for client message, use non blocking flag `HOMA_RECVMSG_NONBLOCKING` if needed
     recv_args->flags |= HOMA_RECVMSG_REQUEST;
-    recv_args->num_bpages = 0;  // no bpage to return here
+    // recv_args->flags |= HOMA_RECVMSG_NONBLOCKING;
+    recv_args->num_bpages = 0; // no bpage to return here
 
     // no need for kernel_recvmsg() for homa, iov stuff are not used by homa
     // the following two lines are literally just from kernel_recvmsg(), with a line for iov stuff removed
@@ -120,43 +127,51 @@ server_init(void)
     if (length < 0) {
         pr_err("kernel_recvmsg error: %d\n", length);
         return length;
+        // return 0;
     }
     else
         pr_info("kernel_recvmsg returned %d\n", length);
 
     // forget zero copy for now, just copy everything from bpages into contiguous memory
-    char *recvbuf = vzalloc(length);
-    pr_info("%s\n", "kmalloc done, start copying into contiguous buffer...");
+    char *recvbuf = kzalloc(length, GFP_KERNEL);
+    pr_info("kmalloc done, start copying into recvbuf: %p\n", recvbuf);
     size_t offset = 0;
+    size_t tocopy_len = length;
+    pr_info("tocopy_len: %lu\n", tocopy_len);
     struct homa_recvmsg_args *recvd_args = recv_hdr.msg_control;
     pr_notice("recvd_args %p, recv_args: %p\n", recvd_args, recv_args);
     pr_notice("after recvmsg, recv_hdr.msg_controllen: %lu\n", recv_hdr.msg_controllen);
-    pr_notice("after recvmsg, recvd_args has %d bpages\n", recvd_args->num_bpages);
+    pr_notice("after recvmsg, recvd_args has %u bpages\n", recvd_args->num_bpages);
+    pr_notice("recvd_args: flags %d, cookie %llu, id %llu, pad %u, %u\n", recvd_args->flags, recvd_args->completion_cookie, recvd_args->id, recvd_args->_pad[0], recvd_args->_pad[1]);
     pr_notice("after recvmsg, recv_args has %d bpages\n", recv_args->num_bpages);
     pr_notice("id: %llu, cookies: %llu, flags: %d, \n", recv_args->id, recv_args->completion_cookie, recv_args->flags);
     for (uint32_t i = 0; i < recv_args->num_bpages; i++)
     {
-        pr_info("copying page %d\n", i);
-        size_t len = ((length > HOMA_BPAGE_SIZE) ? HOMA_BPAGE_SIZE : length);
+        pr_info("copying page %d, offset: %lu\n", i, offset);
+        size_t len = ((tocopy_len > HOMA_BPAGE_SIZE) ? HOMA_BPAGE_SIZE : tocopy_len);
+        pr_info("len: %lu, recv_args->bpage_offsets[i]: %u\n", len, recv_args->bpage_offsets[i]);
         memcpy(recvbuf + offset, server_homa_buf_region + recv_args->bpage_offsets[i], len);
+        offset += len;
+        tocopy_len -= len;
     }
     pr_info("%s %s\n", "copied message:", recvbuf);
     kvfree(recvbuf);
     pr_info("kvfree(recvbuf);\n");
     kfree(recv_args);
+
     pr_notice("server sock_release()\n");
     sock_release(sock);
     pr_notice("server sock_release() finished\n");
+
+    kvfree(server_homa_buf_region);
+    pr_info("%s\n", "freed homa buffer");
     return 0;
 }
 
 static void __exit
 server_exit(void)
 {
-    kvfree(server_homa_buf_region);
-    pr_info("%s", "freed homa buffer\n");
-    // if (hello_dev)
-    //     misc_deregister(hello_dev);
+
     printk(KERN_INFO "unloaded server module\n");
 }
 

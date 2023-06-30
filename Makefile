@@ -1,7 +1,6 @@
-.PHONY: module clean kern_homa_server_test.c kern_homa_server_test.o kern_homa_client_test.c kern_homa_client_test.o
-obj-m += kern_homa_server_test.o kern_homa_client_test.o
+.PHONY: module clean server.c server.o client.c client.o
+obj-m += server.o client.o
 PROG = module
-CFLAGS=-std=c99
 ccflags-y := -std=gnu99 -Wno-declaration-after-statement
 
 all: $(PROG)

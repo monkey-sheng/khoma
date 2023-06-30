@@ -13,29 +13,32 @@ MODULE_DESCRIPTION("test homa client in the kernel.");
 
 #define SERVER_PORT 7777
 
-char *client_homa_buf_region;
+
 
 static int __init
 client_init(void)
 {
     printk(KERN_INFO "loaded kern homa client test\n");
+    char *client_homa_buf_region;
     // sock create
     struct socket *sock;
     int ret;
-    ret = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_HOMA, &sock);
+    ret = sock_create_kern(current->nsproxy->net_ns, AF_INET, SOCK_DGRAM, IPPROTO_HOMA, &sock);
     if (ret < 0)
         pr_err("%s, %d\n", "cannot create socket for homa in kernel!", ret);
     else
         pr_info("%s, %d\n", "sock_create success!", ret);
 
+
     // setsockopt
     pr_info("%s\n", "start setsockopt in kernel");
     struct homa_set_buf_args arg;
     int bufsize = 64 * HOMA_BPAGE_SIZE;
-    client_homa_buf_region = vzalloc(bufsize); // TODO: DON'T use kmalloc if bufsize is large
+    client_homa_buf_region = kzalloc(bufsize, GFP_KERNEL); // TODO: DON'T use kmalloc if bufsize is large
     arg.start = client_homa_buf_region;
     arg.length = bufsize;
 
+    pr_info("starting sock->ops->setsockopt()\n");
     ret = sock->ops->setsockopt(sock, IPPROTO_HOMA, SO_HOMA_SET_BUF, KERNEL_SOCKPTR(&arg), sizeof(arg));
     if (ret < 0)
     {
@@ -89,16 +92,16 @@ client_init(void)
 
     pr_info("closing client socket\n");
     sock_release(sock);
+
+    kvfree(client_homa_buf_region); // HOMA WILL NOT FREE BUFFER POOL ON DESTRUCTION!!!
+    // pr_info("%s\n", "freed client homa buffer");
     return 0;
 }
 
 static void __exit
 client_exit(void)
 {
-    kvfree(client_homa_buf_region);
-    pr_info("%s", "freed homa buffer\n");
-    // if (hello_dev)
-    //     misc_deregister(hello_dev);
+
     printk(KERN_INFO "unloaded client module\n");
 }
 
