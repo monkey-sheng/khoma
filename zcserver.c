@@ -118,7 +118,7 @@ server_init(void)
     // no need for kernel_recvmsg() for homa, iov stuff are not used by homa
     // the following two lines are literally just from kernel_recvmsg(), with a line for iov stuff removed
     recv_hdr.msg_control_is_user = false;
-    recv_hdr.msg_name = kmalloc(sizeof(struct sockaddr_in), GFP_KERNEL); // client addr will be stroed by homa here
+    recv_hdr.msg_name = kmalloc(sizeof(struct sockaddr_in), GFP_KERNEL); // client addr will be stored by homa here
     recv_hdr.msg_namelen = sizeof(struct sockaddr_in);
     pr_info("%s\n", "calling sock_recvmsg()...");
     // TODO: kern_recvmsg
@@ -149,16 +149,32 @@ server_init(void)
     pr_notice("recvd_args: flags %d, cookie %llu, id %llu, pad %u, %u\n", recvd_args->flags, recvd_args->completion_cookie, recvd_args->id, recvd_args->_pad[0], recvd_args->_pad[1]);
     pr_notice("after recvmsg, recv_args has %d bpages\n", recv_args->num_bpages);
     pr_notice("id: %llu, cookies: %llu, flags: %d, \n", recv_args->id, recv_args->completion_cookie, recv_args->flags);
-    for (uint32_t i = 0; i < recv_args->num_bpages; i++)
+    for (uint32_t i = 0; i < recvd_args->num_bpages; i++)
     {
         pr_info("copying page %d, offset: %lu\n", i, offset);
         size_t len = ((tocopy_len > HOMA_BPAGE_SIZE) ? HOMA_BPAGE_SIZE : tocopy_len);
-        pr_info("len: %lu, recv_args->bpage_offsets[i]: %u\n", len, recv_args->bpage_offsets[i]);
-        memcpy(recvbuf + offset, server_homa_buf_region + recv_args->bpage_offsets[i], len);
+        pr_info("len: %lu, recvd_args->bpage_offsets[i]: %u\n", len, recvd_args->bpage_offsets[i]);
+        memcpy(recvbuf + offset, server_homa_buf_region + recvd_args->bpage_offsets[i], len);
         offset += len;
         tocopy_len -= len;
     }
-    pr_info("%s %s\n", "copied message:", recvbuf);
+    pr_info("copied message: %s\n", recvbuf);  // long prints won't all be printed out
+    //// match up with client send contents, very rough checks here ////
+    char *expected = kzalloc(4129, GFP_KERNEL);
+    char msg_string[] = "this is some message on page!!!!";
+    int _cnt = 0;
+    int _offset = 0;
+    int _nr = 128;
+    for (_cnt = 0; _cnt < _nr; _cnt++) // if overwritting the page, things will break badly later without warning
+    {
+        // pr_notice("offset = %d\n", _offset);
+        memcpy(expected + _offset, msg_string, sizeof(msg_string) - 1); // don't copy the \0 for easier receive and printing on server
+        _offset += sizeof(msg_string) - 1;
+    }
+    memcpy(expected + _offset, msg_string, sizeof(msg_string));
+    pr_notice("memcmp with expected: %d\n", memcmp(recvbuf, expected, 4129));
+    kfree(expected);
+    ////////////////////////////////////////////////////////////////
     kvfree(recvbuf);
     pr_info("kvfree(recvbuf);\n");
     kfree(recv_args);

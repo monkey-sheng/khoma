@@ -71,14 +71,6 @@ client_init(void)
     send_hdr.msg_control_is_user = false;
     send_hdr.msg_flags = MSG_SPLICE_PAGES;  // sendpage/splice
 
-    /* char msg_content[] = "ping from client!\n";
-    struct iovec msg_iov = {.iov_base = msg_content, .iov_len = sizeof(msg_content)};
-    struct iov_iter iter;
-    iov_iter_init(&iter, WRITE, &msg_iov, 1, sizeof(msg_content));  // total bytes same as size of struct (bc only the struct)
-    send_hdr.msg_iter = iter;
-    // send_hdr.msg_iovlen = 1;
-    send_hdr.msg_control_is_user = 0; */
-
     // ret = sock_sendmsg(sock, &send_hdr);
     // char msg_string1[] = "this is meant to be a sendpage message to be sent. this is the second sentence in message\n";
     // char msg_string2[] = "this is the second line in message\n";
@@ -101,20 +93,30 @@ client_init(void)
         pr_alert("__get_free_pages() returned NULL addr\n"); */
 
     
-    void *page_addr = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, 0);
+    void *page_addr1 = (void *) __get_free_pages(GFP_KERNEL | __GFP_ZERO, 0);
+    void *page_addr2 = (void *) __get_free_pages(GFP_KERNEL | __GFP_ZERO, 0);
     // write something on the page
-    char msg_string[] = "this is some message on the page\n";
-    memcpy(page_addr, msg_string, sizeof(msg_string));
+    char msg_string[] = "this is some message on page!!!!";
+    int _cnt = 0;
+    int _offset = 0;
+    int _nr = 128;
+    for (_cnt = 0; _cnt < _nr; _cnt++) // if overwritting the page, things will break badly later without warning
+    {
+        pr_notice("offset = %d\n", _offset);
+        memcpy(page_addr1 + _offset, msg_string, sizeof(msg_string)-1); // don't copy the \0 for easier receive and printing on server
+        _offset += sizeof(msg_string)-1;
+    }
+    memcpy(page_addr2, msg_string, sizeof(msg_string));
 
     struct bio_vec bvecs[2];
     pr_info("calling bvec_set_virt()\n");
-    // bvec_set_virt(&bvec, msg_string1, sizeof(msg_string1));
-    bvec_set_virt(&bvecs[0], page_addr, sizeof(msg_string)-1);
-    bvec_set_virt(&bvecs[1], page_addr, sizeof(msg_string));
+    // bvec_set_virt(&bvec, msg_string1, sizeof(msg_string1));  // stack page won't work
+    bvec_set_virt(&bvecs[0], page_addr1, _nr*(sizeof(msg_string)-1));//sizeof(msg_string)-1
+    bvec_set_virt(&bvecs[1], page_addr2, sizeof(msg_string));
     pr_info("calling iov_iter_bvec()\n");
-    iov_iter_bvec(&send_hdr.msg_iter, ITER_SOURCE, bvecs, 2, sizeof(msg_string)*2-1);
+    iov_iter_bvec(&send_hdr.msg_iter, ITER_SOURCE, bvecs, 2, _nr*(sizeof(msg_string)-1) + sizeof(msg_string));//sizeof(msg_string)*2-1
 
-    // ret = kernel_sendmsg(sock, &send_hdr, &bvec, 1, sizeof(msg_string1)); //msg_tosend /* the problem is this expects kvecs */
+    // ret = kernel_sendmsg(sock, &send_hdr, &bvec, 1, sizeof(msg_string1)); /* the problem is this expects kvecs only */
     ret = sock_sendmsg(sock, &send_hdr);  // has to switch to sock_sendmsg
     if (ret < 0)
         pr_err("kernel_sendmsg error: %d\n", ret);

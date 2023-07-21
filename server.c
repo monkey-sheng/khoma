@@ -149,12 +149,12 @@ server_init(void)
     pr_notice("recvd_args: flags %d, cookie %llu, id %llu, pad %u, %u\n", recvd_args->flags, recvd_args->completion_cookie, recvd_args->id, recvd_args->_pad[0], recvd_args->_pad[1]);
     pr_notice("after recvmsg, recv_args has %d bpages\n", recv_args->num_bpages);
     pr_notice("id: %llu, cookies: %llu, flags: %d, \n", recv_args->id, recv_args->completion_cookie, recv_args->flags);
-    for (uint32_t i = 0; i < recv_args->num_bpages; i++)
+    for (uint32_t i = 0; i < recvd_args->num_bpages; i++)
     {
         pr_info("copying page %d, offset: %lu\n", i, offset);
         size_t len = ((tocopy_len > HOMA_BPAGE_SIZE) ? HOMA_BPAGE_SIZE : tocopy_len);
-        pr_info("len: %lu, recv_args->bpage_offsets[i]: %u\n", len, recv_args->bpage_offsets[i]);
-        memcpy(recvbuf + offset, server_homa_buf_region + recv_args->bpage_offsets[i], len);
+        pr_info("len: %lu, recv_args->bpage_offsets[i]: %u\n", len, recvd_args->bpage_offsets[i]);
+        memcpy(recvbuf + offset, server_homa_buf_region + recvd_args->bpage_offsets[i], len);
         offset += len;
         tocopy_len -= len;
     }
