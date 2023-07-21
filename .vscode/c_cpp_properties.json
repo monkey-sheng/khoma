@@ -5,11 +5,11 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}",
-                "/home/vagrant/linux-5.18/include/",
-                "/home/vagrant/HomaModule/",
-                "/home/vagrant/linux-5.18/arch/x86/include/",
-                "/home/vagrant/linux-5.18/arch/x86/include/generated/",
-                "/home/vagrant/linux-5.18/usr/include/",
+                "/home/vagrant/linux-6.5-rc2/include/",
+                "/home/vagrant/linux-6.5-rc2/arch/x86/include/",
+                "/home/vagrant/linux-6.5-rc2/arch/x86/include/generated/",
+                "/home/vagrant/linux-6.5-rc2/usr/include/",
+                "/home/vagrant/HomaModule0/",
             ],
             "defines": [
                 "__GNUC__",
