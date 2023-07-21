@@ -88,9 +88,20 @@ client_init(void)
     
     // use bvec instead of kvec for sendpage semantics, this step is pretty much standard boilerplate
     // this mirrors what tcp does
-    void *page_addr = (void *) __get_free_pages(GFP_KERNEL | __GFP_ZERO, 0);
+
+    // if you do this (load unload module) repeatedly, pages get allocated and never freed, somewhere down the kernel (IRQ?) becomes broken
+    /* void *page_addr;
+    int __cnt = 0;
+    do
+    {
+        pr_warn("cnt: %d\n", ++__cnt);
+        page_addr = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, 32);
+    } while (page_addr);
     if (page_addr == NULL)
-        pr_alert("__get_free_pages() returned NULL addr\n");
+        pr_alert("__get_free_pages() returned NULL addr\n"); */
+
+    
+    void *page_addr = (void *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, 0);
     // write something on the page
     char msg_string[] = "this is some message on the page\n";
     memcpy(page_addr, msg_string, sizeof(msg_string));
