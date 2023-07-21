@@ -118,11 +118,15 @@ server_init(void)
     // no need for kernel_recvmsg() for homa, iov stuff are not used by homa
     // the following two lines are literally just from kernel_recvmsg(), with a line for iov stuff removed
     recv_hdr.msg_control_is_user = false;
+    recv_hdr.msg_name = kmalloc(sizeof(struct sockaddr_in), GFP_KERNEL); // client addr will be stroed by homa here
+    recv_hdr.msg_namelen = sizeof(struct sockaddr_in);
     pr_info("%s\n", "calling sock_recvmsg()...");
     // TODO: kern_recvmsg
     struct kvec unused_kvec;
     pr_notice("before kernel_recvmsg(), recv_hdr.msg_control = recv_args addr: %p\n", recv_args);
-    int length = kernel_recvmsg(sock, &recv_hdr, &unused_kvec, 1, 0, 0); // kvecs (can't be null), and flags in msghdr are unused by homa
+    pr_notice("before kernel_recvmsg(), &recv_hdr: %p\n", &recv_hdr);
+    pr_notice("recv_hdr: %p, recv_hdr.msg_name: %p\n", &recv_hdr, &recv_hdr.msg_name);
+    int length = kernel_recvmsg(sock, &recv_hdr, &unused_kvec, 1, 1000, 0); // kvecs (can't be null), and flags in msghdr are unused by homa
     // int length = sock_recvmsg(sock, &recv_hdr, 0); // flags in msghdr are unused by homa
     if (length < 0) {
         pr_err("kernel_recvmsg error: %d\n", length);
@@ -158,6 +162,8 @@ server_init(void)
     kvfree(recvbuf);
     pr_info("kvfree(recvbuf);\n");
     kfree(recv_args);
+    kfree(recv_hdr.msg_name);
+    pr_info("kfree(recv_hdr.msg_name;\n");
 
     pr_notice("server sock_release()\n");
     sock_release(sock);

@@ -80,11 +80,12 @@ client_init(void)
 
     // ret = sock_sendmsg(sock, &send_hdr);
     char msg_string1[] = "this is a message to be sent. this is the second sentence in message\n";
+    // msg_string1[sizeof(msg_string1) - 1] = ' ';
     char msg_string2[] = "this is the second line in message\n";
-    struct kvec msg_content1 = {.iov_base = msg_string1, .iov_len = sizeof(msg_string1)};
+    struct kvec msg_content1 = {.iov_base = msg_string1, .iov_len = sizeof(msg_string1) - 1};
     struct kvec msg_content2 = {.iov_base = msg_string2, .iov_len = sizeof(msg_string2)};
     struct kvec msg_tosend[2] = {msg_content1, msg_content2};
-    ret = kernel_sendmsg(sock, &send_hdr, msg_tosend, 1, sizeof(msg_string1));
+    ret = kernel_sendmsg(sock, &send_hdr, msg_tosend, 2, sizeof(msg_string1)-1 + sizeof(msg_string2));
     if (ret < 0)
         pr_err("kernel_sendmsg error: %d\n", ret);
     else
